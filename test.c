@@ -1,6 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+
+#define INTERATIVE_TEST
 
 // Enable ECB, CTR and CBC mode. Note this can be done before including aes.h or at compile-time.
 // E.g. with GCC by using the -D flag: gcc -c aes.c -DCBC=0 -DCTR=1 -DECB=1
@@ -19,9 +22,13 @@ static int test_decrypt_ctr(void);
 static int test_encrypt_ecb(void);
 static int test_decrypt_ecb(void);
 static void test_encrypt_ecb_verbose(void);
+static int test_interative_encrypt_cbc(int argc, char** argv);
 
-
+#ifdef INTERATIVE_TEST
+int main(int argc, char** argv)
+#else
 int main(void)
+#endif
 {
     int exit;
 
@@ -36,11 +43,14 @@ int main(void)
     return 0;
 #endif
 
+#ifdef INTERATIVE_TEST
+    exit = test_interative_encrypt_cbc(argc, argv);
+#else
     exit = test_encrypt_cbc() + test_decrypt_cbc() +
 	test_encrypt_ctr() + test_decrypt_ctr() +
 	test_decrypt_ecb() + test_encrypt_ecb();
     test_encrypt_ecb_verbose();
-
+#endif
     return exit;
 }
 
@@ -57,6 +67,14 @@ static void phex(uint8_t* str)
     uint8_t len = 16;
 #endif
 
+    unsigned char i;
+    for (i = 0; i < len; ++i)
+        printf("%.2x", str[i]);
+    printf("\n");
+}
+
+static void phex2(uint8_t* str, size_t len)
+{
     unsigned char i;
     for (i = 0; i < len; ++i)
         printf("%.2x", str[i]);
@@ -223,6 +241,53 @@ static int test_encrypt_cbc(void)
         printf("FAILURE!\n");
 	return(1);
     }
+}
+
+static size_t pkcs7_pad(char** dest, const char* orig, size_t blksz)
+{
+    size_t orig_sz = strlen(orig) * sizeof(char);
+    size_t dst_sz = orig_sz;
+    int orig_sz_remainder = orig_sz % blksz;
+    int added = 0;
+    if (orig_sz_remainder != 0) {
+        added = blksz - orig_sz_remainder;
+        dst_sz += added;
+    } else {
+        added = blksz;
+        dst_sz += blksz;
+    }
+
+    char* gen = (char*) malloc((dst_sz + 1) * sizeof(char));
+    memcpy(gen, orig, orig_sz);
+    memset(gen + orig_sz, added, added);
+    gen[dst_sz] = '\0';
+    *dest = gen;
+    return dst_sz;
+}
+
+static int test_interative_encrypt_cbc(int argc, char** argv)
+{
+#if defined(AES256)
+    // abcdefghijklmnopabcdefghijklmnop
+    uint8_t key[] = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70,
+                      0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70 };
+#elif defined(AES192)
+    uint8_t key[] = { 0x8e, 0x73, 0xb0, 0xf7, 0xda, 0x0e, 0x64, 0x52, 0xc8, 0x10, 0xf3, 0x2b, 0x80, 0x90, 0x79, 0xe5, 0x62, 0xf8, 0xea, 0xd2, 0x52, 0x2c, 0x6b, 0x7b };
+#elif defined(AES128)
+    uint8_t key[] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
+#endif
+    // abcdefghijklmnop
+    uint8_t iv[]  = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70 };
+    char* in_str = NULL;
+    size_t in_sz = pkcs7_pad(&in_str, argv[1], AES_BLOCKLEN);
+
+    struct AES_ctx ctx;
+
+    AES_init_ctx_iv(&ctx, key, iv);
+    AES_CBC_encrypt_buffer(&ctx, (uint8_t*)in_str, in_sz);
+
+    printf("CBC encrypt: ");
+    phex2((uint8_t*)in_str, in_sz);
 }
 
 static int test_xcrypt_ctr(const char* xcrypt);
