@@ -1,6 +1,4 @@
-/*.o
-/test.elf
-/test.map
-test_package/build
-/*.exe
-/*.a
+build/vs15/tiny_aes_c/x64/**
+build/vs15/tiny_aes_c/tiny_aes_c_lib/x64/**
+build/vs15/tiny_aes_c/*.db
+build/vs15/tiny_aes_c/*.opendb
